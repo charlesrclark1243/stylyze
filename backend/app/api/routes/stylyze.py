@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Resolved from this file rather than the working directory, so the app finds the checkpoint however it's launched.
 # MODEL_CHECKPOINT overrides it, e.g. for weights mounted into the container
-DEFAULT_CHECKPOINT = Path(__file__).resolve().parents[3] / "checkpoints" / "epoch_6.pth"
+DEFAULT_CHECKPOINT = Path(__file__).resolve().parents[3] / "checkpoints" / "model.pth"
 CHECKPOINT_PATH = Path(os.environ.get("MODEL_CHECKPOINT", DEFAULT_CHECKPOINT))
 
 
