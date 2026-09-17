@@ -1,2 +1,4 @@
 .venv
 __pycache__
+# Fetched from the model release during the build; a local copy must not shadow it
+checkpoints/

@@ -10,6 +10,14 @@ RUN pip install uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Weights come from a GitHub release rather than git. Its own layer, so editing
+# code doesn't re-download 63 MB. Override the defaults in the script with
+# --build-arg MODEL_URL=... --build-arg MODEL_SHA256=... to build on other weights.
+ARG MODEL_URL
+ARG MODEL_SHA256
+COPY scripts/fetch_model.py ./scripts/
+RUN python scripts/fetch_model.py
+
 COPY . .
 
 EXPOSE 8000
