@@ -1,0 +1,21 @@
+[project]
+name = "training"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "torch==2.14.0",
+    "torchvision==0.29.0",
+    "pillow",
+    "tqdm",
+    "matplotlib",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
