@@ -1,0 +1,10 @@
+name: Publish images
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - backend/**
+      - frontend/**
+      - github/workflows/publish.yml
+  workflow_dispatch:
