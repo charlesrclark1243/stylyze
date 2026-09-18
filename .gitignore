@@ -10,3 +10,5 @@ __pycache__/
 data/
 results/
 checkpoints/
+# local environment (DOMAIN, TAG)
+.env

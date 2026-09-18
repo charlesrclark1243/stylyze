@@ -1,0 +1,66 @@
+# Production stack. Images come from GHCR; nothing is built on the instance.
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    image: ghcr.io/charlesrclark1243/stylyze-backend:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      # python:3.12-slim has no curl. /health reports whether the checkpoint
+      # loaded, so a bad image fails the check instead of silently 503ing.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/health")
+      interval: 30s
+      timeout: 10s
+      # torch import plus a 66 MB checkpoint load is slow on 2 vCPUs
+      start_period: 60s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  frontend:
+    image: ghcr.io/charlesrclark1243/stylyze-frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        # nginx resolves "backend" once at startup and exits if it's missing,
+        # so wait for healthy rather than merely started
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # The only service facing the internet
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # issued certificates live here
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:
