@@ -15,15 +15,15 @@ from pathlib import Path
 
 MODEL_URL = (
     os.environ.get("MODEL_URL")
-    or "https://github.com/charlesrclark1243/stylyze/releases/download/model-v1/model.pth"
+    or "https://github.com/charlesrclark1243/stylyze/releases/download/model-onnx-v1/model.onnx"
 )
 MODEL_SHA256 = (
     os.environ.get("MODEL_SHA256")
-    or "6eb56be5cd858ede07c94fb98dc4c58550585482dd0f51a774a6c5bb90e9217b"
+    or "2c0aa0041e870c99ed57d21afeeadc36283e6ada916d45a62cfbf9bb5898018e"
 ).lower()
 
 # Matches DEFAULT_CHECKPOINT in app/api/routes/stylyze.py, from the backend root
-DESTINATION = Path(__file__).resolve().parents[1] / "checkpoints" / "model.pth"
+DESTINATION = Path(__file__).resolve().parents[1] / "checkpoints" / "model.onnx"
 
 
 def sha256(path: Path) -> str:

@@ -5,40 +5,45 @@ from io import BytesIO
 from pathlib import Path
 from typing import Annotated
 
-import torch
+import numpy as np
+import onnxruntime as ort
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
-from models.model import StyleTransferModel, read_checkpoint
 from PIL import Image, ImageOps, UnidentifiedImageError
-from torchvision.transforms import Resize, ToTensor
 
 logger = logging.getLogger(__name__)
 
 # Resolved from this file rather than the working directory, so the app finds the checkpoint however it's launched.
 # MODEL_CHECKPOINT overrides it, e.g. for weights mounted into the container
-DEFAULT_CHECKPOINT = Path(__file__).resolve().parents[3] / "checkpoints" / "model.pth"
+DEFAULT_CHECKPOINT = Path(__file__).resolve().parents[3] / "checkpoints" / "model.onnx"
 CHECKPOINT_PATH = Path(os.environ.get("MODEL_CHECKPOINT", DEFAULT_CHECKPOINT))
 
 
-def load_model(checkpoint_path: Path) -> StyleTransferModel | None:
-    """Loads the model, or returns None if the checkpoint is missing so the rest of the API still starts."""
-    if not checkpoint_path.is_file():
-        logger.warning(
-            "No model checkpoint at %s; /api/stylyze will return 503", checkpoint_path
+def load_model(checkpoint_path: Path) -> ort.InferenceSession | None:
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = int(
+        os.environ.get("OMP_NUM_THREADS", os.cpu_count() or 2)
+    )  # Default to 2 threads if not set
+
+    try:
+        session = ort.InferenceSession(
+            str(checkpoint_path), options, providers=["CPUExecutionProvider"]
+        )
+        return session
+    except ort.capi.onnxruntime_pybind11_state.NoSuchFile:
+        logger.error("Error loading ONNX model: File not found.")
+        return None
+    except ort.capi.onnxruntime_pybind11_state.RuntimeException:
+        logger.error(
+            "Error loading ONNX model: ONNX runtime exception. The model may be corrupted or incompatible."
         )
         return None
-
-    model = StyleTransferModel()
-    model.load_state_dict(
-        read_checkpoint(torch.load(checkpoint_path, map_location="cpu"))
-    )
-
-    return model.eval()
+    except Exception:
+        logger.error("Unexpected error loading ONNX model.")
+        return None
 
 
-model = load_model(CHECKPOINT_PATH)
-
+session = load_model(CHECKPOINT_PATH)
 semaphore = threading.Semaphore(1)  # Limit to one inference at a time
-torch.set_num_threads(2)
 
 router = APIRouter()
 
@@ -95,6 +100,38 @@ def load_image(file: UploadFile):
     return image
 
 
+def resize_short_side(image: Image.Image, target_size: int = 512) -> Image.Image:
+    """
+    Resize the image so that its shorter side is equal to target_size, maintaining the aspect ratio.
+
+    Args:
+        image (Image.Image): The input image to resize.
+        target_size (int): The desired size for the shorter side of the image.
+
+    Returns:
+        Image.Image: The resized image.
+    """
+
+    w, h = image.size
+    scale = target_size / min(w, h)
+
+    return image.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+
+
+def to_array(image: Image.Image) -> np.ndarray:
+    """
+    Convert a PIL Image to a NumPy array with shape (1, 3, H, W) and values in [0, 1].
+
+    Args:
+        image (Image.Image): The input PIL Image.
+
+    Returns:
+        np.ndarray: The image as a NumPy array with shape (1, 3, H, W).
+    """
+
+    return np.asarray(image, dtype=np.float32).transpose(2, 0, 1)[None] / 255.0
+
+
 @router.post("/stylyze")
 def stylyze(
     content: Annotated[UploadFile, File(...)],
@@ -113,27 +150,33 @@ def stylyze(
         Response: The stylized image in JPEG format.
     """
 
-    if model is None:
+    if session is None:
         raise HTTPException(
             status_code=503, detail="The style transfer model is not loaded."
         )
 
-    content_image = Resize(512)(load_image(content))
-    style_image = Resize(512)(load_image(style))
+    content_image = resize_short_side(load_image(content))
+    style_image = resize_short_side(load_image(style))
 
     width, height = content_image.size
     content_image = content_image.crop((0, 0, width - width % 8, height - height % 8))
 
-    content_image = ToTensor()(content_image).unsqueeze(0)  # Add batch dimension
-    style_image = ToTensor()(style_image).unsqueeze(0)  # Add batch dimension
+    content_image = to_array(content_image)
+    style_image = to_array(style_image)
 
-    with torch.no_grad(), semaphore:
-        stylyzed_image = model(content_image, style_image, alpha)
+    with semaphore:
+        stylyzed = session.run(
+            None,
+            {
+                "content": content_image,
+                "style": style_image,
+                "alpha": np.array(alpha, dtype=np.float32),
+            },
+        )[0]
 
     # Convert the output tensor to a PIL image
-    stylyzed_image = stylyzed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
     stylyzed_image = Image.fromarray(
-        (stylyzed_image.clip(0, 1) * 255).round().astype("uint8")
+        (stylyzed[0].transpose(1, 2, 0).clip(0, 1) * 255).round().astype("uint8")
     )
 
     buffer = BytesIO()
