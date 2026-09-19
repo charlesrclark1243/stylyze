@@ -22,7 +22,10 @@ def load_model(checkpoint_path: Path) -> ort.InferenceSession | None:
     options = ort.SessionOptions()
     options.intra_op_num_threads = int(
         os.environ.get("OMP_NUM_THREADS") or len(os.sched_getaffinity(0))
-    )  # Default to 2 threads if not set
+    )
+    options.enable_cpu_mem_arena = (
+        False  # Avoids memory fragmentation on small images, which can cause OOM errors
+    )
 
     try:
         session = ort.InferenceSession(
