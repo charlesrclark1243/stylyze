@@ -79,15 +79,49 @@ export class App implements OnDestroy {
   }
 }
 
-// With responseType 'blob', error bodies arrive as a Blob too, so FastAPI's JSON detail has to be read out of it
-async function errorMessage(err: unknown): Promise<string> {
-  if (err instanceof HttpErrorResponse && err.error instanceof Blob) {
-    try {
-      const body = JSON.parse(await err.error.text());
-      if (typeof body.detail === 'string') return body.detail;
-    } catch {
-      // Not JSON, e.g. an nginx error page
-    }
+// With responseType 'blob', error bodies arrive as a Blob too, so FastAPI's JSON detail
+// has to be read out of it. nginx and Caddy send HTML instead, so this returns null for them.
+async function errorDetail(err: HttpErrorResponse): Promise<string | null> {
+  if (!(err.error instanceof Blob)) return null;
+
+  try {
+    const body = JSON.parse(await err.error.text());
+    return typeof body.detail === 'string' ? body.detail : null;
+  } catch {
+    return null;
   }
-  return 'Something went wrong. Please try again.';
+}
+
+async function errorMessage(err: unknown): Promise<string> {
+  const fallback = 'Something went wrong. Please try again.';
+  if (!(err instanceof HttpErrorResponse)) return fallback;
+
+  // The backend's own message is the most specific one available, when there is one
+  const detail = await errorDetail(err);
+
+  switch (err.status) {
+    case 429: {
+      // Two sources: nginx sheds bursts per IP, and the backend refuses work when its
+      // single inference slot is busy. Only the latter sends Retry-After.
+      const retryAfter = Number(err.headers.get('Retry-After'));
+      const wait =
+        Number.isFinite(retryAfter) && retryAfter > 0 ? `${retryAfter} seconds` : 'a moment';
+      return (
+        detail ?? `Busy right now - only one image is stylized at a time. Try again in ${wait}.`
+      );
+    }
+    case 413:
+      return detail ?? 'Those images are too large. Each one must be under 10 MB.';
+    case 415:
+      return detail ?? 'Only JPEG and PNG images are supported.';
+    case 503:
+      return detail ?? 'The stylizer is still starting up. Try again in a minute.';
+    case 504:
+      return 'That took too long to stylize. Try again, or use a smaller image.';
+    case 0:
+      // Angular reports network failures and CORS errors as status 0
+      return 'Could not reach the server. Check your connection and try again.';
+    default:
+      return detail ?? fallback;
+  }
 }
