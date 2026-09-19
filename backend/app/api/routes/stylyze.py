@@ -38,7 +38,7 @@ def load_model(checkpoint_path: Path) -> StyleTransferModel | None:
 model = load_model(CHECKPOINT_PATH)
 
 semaphore = threading.Semaphore(1)  # Limit to one inference at a time
-torch.set_num_threads(4)
+torch.set_num_threads(2)
 
 router = APIRouter()
 
