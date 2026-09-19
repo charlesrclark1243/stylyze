@@ -8,7 +8,7 @@ from typing import Annotated
 import torch
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from models.model import StyleTransferModel, read_checkpoint
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from torchvision.transforms import Resize, ToTensor
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,9 @@ def load_image(file: UploadFile):
 
     # load and verify, then return if it passes
     try:
-        image = Image.open(BytesIO(file.file.read())).convert("RGB")
+        image = ImageOps.exif_transpose(Image.open(BytesIO(file.file.read()))).convert(
+            "RGB"
+        )
     except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError):
         raise HTTPException(
             status_code=400,
