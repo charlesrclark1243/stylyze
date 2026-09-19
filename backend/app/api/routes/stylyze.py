@@ -21,7 +21,7 @@ CHECKPOINT_PATH = Path(os.environ.get("MODEL_CHECKPOINT", DEFAULT_CHECKPOINT))
 def load_model(checkpoint_path: Path) -> ort.InferenceSession | None:
     options = ort.SessionOptions()
     options.intra_op_num_threads = int(
-        os.environ.get("OMP_NUM_THREADS", os.cpu_count() or 2)
+        os.environ.get("OMP_NUM_THREADS") or len(os.sched_getaffinity(0))
     )  # Default to 2 threads if not set
 
     try:
