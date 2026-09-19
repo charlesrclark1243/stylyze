@@ -3,6 +3,10 @@ from torch import nn
 
 
 class AdaIN(nn.Module):
+    """
+    Adaptive Instance Normalization (AdaIN) layer.
+    """
+
     def __init__(self):
         super().__init__()
 

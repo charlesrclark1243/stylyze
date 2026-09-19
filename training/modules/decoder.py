@@ -3,6 +3,9 @@ from torch import nn
 
 
 def conv3x3(in_channels: int, out_channels: int) -> nn.Conv2d:
+    """
+    Creates a 3x3 convolutional layer with reflection padding.
+    """
     # Reflection padding avoids the frame that zero padding leaves around the output
     return nn.Conv2d(
         in_channels, out_channels, kernel_size=3, padding=1, padding_mode="reflect"
@@ -10,6 +13,10 @@ def conv3x3(in_channels: int, out_channels: int) -> nn.Conv2d:
 
 
 class ResidualBlock(nn.Module):
+    """
+    A residual block with two convolutional layers.
+    """
+
     def __init__(self, in_channels: int):
         super().__init__()
 
