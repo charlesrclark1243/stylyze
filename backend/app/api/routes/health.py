@@ -14,4 +14,4 @@ def health():
         Response: The application status and whether the style transfer model is loaded.
     """
 
-    return {"status": "ok", "model_loaded": stylyze.model is not None}
+    return {"status": "ok", "model_loaded": stylyze.session is not None}
