@@ -167,26 +167,26 @@ def stylyze(
     content_image = to_array(content_image)
     style_image = to_array(style_image)
 
-    with semaphore:
-        if not semaphore.acquire(timeout=30):
-            raise HTTPException(
-                status_code=429,
-                detail="The server is busy stylizing another image. Please try again shortly.",
-                headers={
-                    "Retry-After": "30"
-                },  # suggests the client wait 30 seconds before retrying
-            )
-        try:
-            stylyzed = session.run(
-                None,
-                {
-                    "content": content_image,
-                    "style": style_image,
-                    "alpha": np.array(alpha, dtype=np.float32),
-                },
-            )[0]
-        finally:
-            semaphore.release()
+    if not semaphore.acquire(timeout=30):
+        raise HTTPException(
+            status_code=429,
+            detail="The server is busy stylizing another image. Please try again shortly.",
+            headers={
+                "Retry-After": "30"
+            },  # suggests the client wait 30 seconds before retrying
+        )
+
+    try:
+        stylyzed = session.run(
+            None,
+            {
+                "content": content_image,
+                "style": style_image,
+                "alpha": np.array(alpha, dtype=np.float32),
+            },
+        )[0]
+    finally:
+        semaphore.release()
 
     # Convert the output tensor to a PIL image
     stylyzed_image = Image.fromarray(
