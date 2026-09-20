@@ -40,7 +40,7 @@ def load_model(checkpoint_path: Path) -> ort.InferenceSession | None:
             "Error loading ONNX model: ONNX runtime exception. The model may be corrupted or incompatible."
         )
         return None
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.error("Unexpected error loading ONNX model.")
         return None
 
