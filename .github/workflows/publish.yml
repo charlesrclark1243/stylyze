@@ -26,7 +26,49 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+
+      # Build locally first so the smoke tests run against the exact image that ships.
+      # A failure here means nothing reaches the registry.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          load: true
+          push: false
+          tags: stylyze-${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Smoke test backend
+        if: matrix.service == 'backend'
+        run: |
+          docker run -d --name smoke -p 8000:8000 stylyze-backend:ci
+          for _ in $(seq 60); do
+            curl -sf http://localhost:8000/health >/dev/null && break
+            sleep 1
+          done
+          pip install --quiet pillow
+          python backend/tests/smoke.py http://localhost:8000
+
+      - name: Smoke test frontend
+        if: matrix.service == 'frontend'
+        run: |
+          # No backend here, so /api/ can't be exercised; the resolver directive is what
+          # lets nginx start anyway instead of dying on an unresolvable upstream
+          docker run -d --name smoke -p 8080:80 stylyze-frontend:ci
+          sleep 3
+          [ "$(docker inspect -f '{{.State.Running}}' smoke)" = "true" ] || { docker logs smoke; exit 1; }
+          curl -sf -o /dev/null http://localhost:8080/
+          test "$(curl -s -o /dev/null -w '%{content_type}' http://localhost:8080/favicon.ico)" = "image/x-icon"
+          test "$(curl -s -o /dev/null -w '%{size_download}' http://localhost:8080/favicon.ico)" -gt 1000
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs smoke || true
+
+      # Cache hit from the build above, so this is a re-tag and push rather than a rebuild
+      - name: Push
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service }}
           push: true
@@ -34,4 +76,3 @@ jobs:
             ghcr.io/charlesrclark1243/stylyze-${{ matrix.service }}:latest
             ghcr.io/charlesrclark1243/stylyze-${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

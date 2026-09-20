@@ -2,3 +2,5 @@
 __pycache__
 # Fetched from the model release during the build; a local copy must not shadow it
 checkpoints/
+# CI-only, runs against the built image from outside
+tests/
