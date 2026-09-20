@@ -20,8 +20,7 @@ stylyze is a neural style transfer (NST) application. The user uploads both a re
 
 ## How does stylyze work?
 
-stylyze is an implementation of [Adaptive Instance Normalization](https://arxiv.org/abs/1703.06868)
-(Huang & Belongie, 2017), trained from scratch on COCO and WikiArt.
+stylyze is an implementation of Adaptive Instance Normalization [1], trained from scratch on COCO and WikiArt.
 
 ### The idea
 
