@@ -12,6 +12,7 @@
    - [Style strength](#style-strength)
    - [Training](#training)
    - [Serving it](#serving-it)
+3. [Citations](#citations)
 
 ## What is stylyze?
 
